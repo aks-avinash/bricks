@@ -116,7 +116,7 @@ The defined metrics should follow the best practices defined [here](https://prom
         * **Code** (200, 501, ...) - HTTP status code
         * **Method** (GET, PUT, POST, ...) - HTTP method
         * **Path** ("/beta/cars", "/beta/cars/{id}", ...) - Path to the endpoint as defined in the OpenAPIv3 spec
-        * **Service** (car, dtc, ...) - name of the microservice
+        * **Service** (car, dtc, ...) - name of the microservice *(not yet implemented)*
         * **ClientID** (unknown, "XYZ") - OAuth2 ClientID to filter usage per business partner, app, cockpit, ...
 
 * `pace_api_http_request_duration_seconds` (Histogram)
@@ -125,9 +125,10 @@ The defined metrics should follow the best practices defined [here](https://prom
         * Track latency per service path/method (**Golden Signal**)
         * Identify low performing service endpoints for development / identify performance regressions
     * Labels:
+        * **Code** (200, 501, ...) - HTTP status code
         * **Method** (GET, PUT, POST, ...) - HTTP method
         * **Path** ("/beta/cars", "/beta/cars/{id}", ...) - Path to the endpoint as defined in the OpenAPIv3 spec
-        * **Service** (car, dtc, ...) - name of the microservice
+        * **Service** (car, dtc, ...) - name of the microservice *(not yet implemented)*
 
 * `pace_api_http_size_bytes` (Histogram)
     * Collect performance metrics for each API endpoint
@@ -135,7 +136,8 @@ The defined metrics should follow the best practices defined [here](https://prom
         * Track amount of bytes responded/requested per service path/method (**Golden Signal**)
         * Identify possible issues for the application due to to big responses
     * Labels:
+        * **Code** (200, 501, ...) - HTTP status code
         * **Method** (GET, PUT, POST, ...) - HTTP method
         * **Path** ("/beta/cars", "/beta/cars/{id}", ...) - Path to the endpoint as defined in the OpenAPIv3 spec
-        * **Service** (car, dtc, ...) - name of the microservice
+        * **Service** (car, dtc, ...) - name of the microservice *(not yet implemented)*
         * **Type** (req, resp) - HTTP request or response

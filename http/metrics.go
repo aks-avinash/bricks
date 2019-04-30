@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/gorilla/mux"
 	"net/http"
 	"strconv"
 	"time"
@@ -21,60 +22,73 @@ var (
 
 	paceHTTPCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "pace_http_request_total",
+			Name: "pace_api_http_request_total",
 			Help: "A counter for requests to the wrapped handler.",
 		},
-		[]string{"code", "method", "source"},
+		[]string{"code", "method", "source", "path"},
 	)
 
 	// Duration is labeled by the request method and source, and response code.
 	// It uses custom buckets based on the expected request duration.
 	paceHTTPDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "pace_http_request_duration_milliseconds",
-			Help:    "A histogram of latencies for requests.",
-			Buckets: []float64{10, 50, 100, 300, 600, 1000, 2500, 5000, 10000, 60000},
+			Name:    "pace_api_http_request_duration_seconds",
+			Help:    "A histogram of request durations.",
+			Buckets: []float64{0.01, 0.05, 0.1, 0.3, 0.6, 1, 2.5, 5, 10, 60},
 		},
-		[]string{"code", "method", "source"},
+		[]string{"code", "method", "source", "path"},
 	)
 
-	// ResponseSize is labeled by the request method and source, and response code.
+	// Size is labeled by the request method, path and source, response code, and type.
+	// The type label distinguishes between request and response size.
 	// It uses custom buckets based on the expected response size.
-	paceHTTPResponseSize = prometheus.NewHistogramVec(
+	paceHTTPSize = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "pace_http_request_size_bytes", // TODO: rename request -> response and check that it doesn't break anything
-			Help: "A histogram of response sizes for requests.",
+			Name: "pace_api_http_size_bytes",
+			Help: "A histogram of request and response body sizes.",
 			Buckets: []float64{
 				100,
 				kb, 10 * kb, 100 * kb,
 				1 * mb, 5 * mb, 10 * mb, 100 * mb,
 			},
 		},
-		[]string{"code", "method", "source"},
+		[]string{"code", "method", "source", "path", "type"},
 	)
 )
 
 func init() {
 	// Register all of the metrics in the standard registry.
-	prometheus.MustRegister(paceHTTPInFlightGauge, paceHTTPCounter, paceHTTPDuration, paceHTTPResponseSize)
+	prometheus.MustRegister(paceHTTPInFlightGauge, paceHTTPCounter, paceHTTPDuration, paceHTTPSize)
 }
 
 func metricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paceHTTPInFlightGauge.Inc()
 		defer paceHTTPInFlightGauge.Dec()
+
 		startTime := time.Now()
 		srw := statusWriter{ResponseWriter: w}
 		next.ServeHTTP(&srw, r)
 		dur := float64(time.Since(startTime)) / float64(time.Millisecond)
+
 		labels := prometheus.Labels{
 			"code":   strconv.Itoa(srw.status),
 			"method": r.Method,
 			"source": filterRequestSource(r.Header.Get("Request-Source")),
+			"path":   "",
 		}
+		if route := mux.CurrentRoute(r); route != nil {
+			if path, err := route.GetPathTemplate(); err == nil {
+				labels["path"] = path
+			}
+		}
+
 		paceHTTPCounter.With(labels).Inc()
 		paceHTTPDuration.With(labels).Observe(dur)
-		paceHTTPResponseSize.With(labels).Observe(float64(srw.length))
+		labels["type"] = "req"
+		paceHTTPSize.With(labels).Observe(float64(r.ContentLength)) // request size
+		labels["type"] = "resp"
+		paceHTTPSize.With(labels).Observe(float64(srw.length)) // response size
 	})
 }
 
